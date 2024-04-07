@@ -213,6 +213,18 @@ func (mnt *mfsHandler) CreateSnapshot(volumeId string, snapshotId string) (int64
 	return mnt.GetQuota(snapPath)
 }
 
+func (mnt *mfsHandler) DeleteSnapshot(snapshotID string) error {
+	path := mnt.HostPathToVolume(snapshotID)
+	cmd := exec.Command(removeSnapshotCmd, path)
+	cmd.Dir = mnt.hostMountPath
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func parseMfsQuotaToolsOutput(output string) (int64, error) {
 	lines := strings.Split(output, "\n")
 	if len(lines) <= quotaLimitRow {

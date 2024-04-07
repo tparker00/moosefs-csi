@@ -328,7 +328,6 @@ func (cs *ControllerService) ControllerUnpublishVolume(ctx context.Context, req 
 }
 
 func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-
 	log.Infof("CreateSnapshot: called with args: %+v", protosanitizer.StripSecrets(*req))
 
 	name := req.Name
@@ -368,6 +367,29 @@ func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.Create
 			ReadyToUse:     true,
 		},
 	}, nil
+}
+
+func (cs *ControllerService) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	log.Infof("DeleteSnapshot: called with args: %+v", protosanitizer.StripSecrets(*req))
+
+	snapshotID := req.GetSnapshotId()
+
+	if snapshotID == "" {
+		return nil, status.Error(codes.InvalidArgument, "Snapshot ID must be provided in DeleteSnapshot request")
+	}
+
+	exists, err := cs.ctlMount.VolumeExist(snapshotID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if !exists {
+		return &csi.DeleteSnapshotResponse{}, nil
+	}
+	if err := cs.ctlMount.DeleteSnapshot(snapshotID); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 //////////////////////

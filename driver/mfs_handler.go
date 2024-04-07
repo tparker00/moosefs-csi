@@ -30,10 +30,12 @@ import (
 )
 
 const (
-	fsType        = "moosefs"
-	newVolumeMode = 0755
-	getQuotaCmd   = "mfsgetquota"
-	setQuotaCmd   = "mfssetquota"
+	fsType            = "moosefs"
+	newVolumeMode     = 0755
+	getQuotaCmd       = "mfsgetquota"
+	setQuotaCmd       = "mfssetquota"
+	createSnapshotCmd = "mfsmakesnapshot"
+	removeSnapshotCmd = "mfsrmsnapshot"
 	// maybe configurable later
 	quotaLimitType = "-L"
 	quotaLimitRow  = 2
@@ -194,6 +196,21 @@ func (mnt *mfsHandler) SetQuota(volumeId string, size int64) (int64, error) {
 	} else {
 		return quotaLimit, nil
 	}
+}
+
+func (mnt *mfsHandler) CreateSnapshot(volumeId string, snapshotId string) (int64, error) {
+	volPath := mnt.HostPathToVolume(volumeId)
+	snapPath := mnt.HostPathToVolume(snapshotId)
+	createSnapshotArgs := []string{volPath, snapPath}
+	cmd := exec.Command(createSnapshotCmd, createSnapshotArgs...)
+	cmd.Dir = mnt.hostMountPath
+	_, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return 0, err
+	}
+
+	return mnt.GetQuota(snapPath)
 }
 
 func parseMfsQuotaToolsOutput(output string) (int64, error) {

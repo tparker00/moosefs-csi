@@ -334,6 +334,7 @@ func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.Create
 	name := req.Name
 	volumeID := req.GetSourceVolumeId()
 	var ctime *timestamppb.Timestamp
+	var size int64
 	//var snap *snapshots.Snapshot Need to implement
 
 	if name == "" {
@@ -344,15 +345,15 @@ func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.Create
 		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided in CreateSnapshot request")
 	}
 
-	snapName := fmt.Sprintf("%s-snap")
-	exists, err := cs.ctlMount.VolumeExist(snapName)
+	snapshotID := fmt.Sprintf("%s-snap", volumeID)
+	exists, err := cs.ctlMount.VolumeExist(snapshotID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if exists {
-		return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot: Snapshot %s already exists", snapName)
+		return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot: Snapshot %s already exists", snapshotID)
 	} else {
-		snap, err := cs.ctlMount.CreateSnapshot(volumeID, snapName)
+		size, err = cs.ctlMount.CreateSnapshot(volumeID, snapshotID)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -360,8 +361,8 @@ func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.Create
 
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
-			SnapshotId:     snap.Name,
-			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024 * 1024),
+			SnapshotId:     snapshotID,
+			SizeBytes:      size,
 			SourceVolumeId: volumeID,
 			CreationTime:   ctime,
 			ReadyToUse:     true,

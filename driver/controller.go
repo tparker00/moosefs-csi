@@ -21,8 +21,10 @@ import (
 	"fmt"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -47,6 +49,7 @@ var controllerCapabilities = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+	csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 	//	csi.ControllerServiceCapability_RPC_PUBLISH_READONLY,
 }
 
@@ -322,6 +325,48 @@ func (cs *ControllerService) ControllerUnpublishVolume(ctx context.Context, req 
 		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume: VolumeId must be provided")
 	}
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
+}
+
+func (cs *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+
+	log.Infof("CreateSnapshot: called with args: %+v", protosanitizer.StripSecrets(*req))
+
+	name := req.Name
+	volumeID := req.GetSourceVolumeId()
+	var ctime *timestamppb.Timestamp
+	//var snap *snapshots.Snapshot Need to implement
+
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
+	}
+
+	if volumeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided in CreateSnapshot request")
+	}
+
+	snapName := fmt.Sprintf("%s-snap")
+	exists, err := cs.ctlMount.VolumeExist(snapName)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if exists {
+		return nil, status.Errorf(codes.AlreadyExists, "CreateSnapshot: Snapshot %s already exists", snapName)
+	} else {
+		snap, err := cs.ctlMount.CreateSnapshot(volumeID, snapName)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     snap.Name,
+			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024 * 1024),
+			SourceVolumeId: volumeID,
+			CreationTime:   ctime,
+			ReadyToUse:     true,
+		},
+	}, nil
 }
 
 //////////////////////
